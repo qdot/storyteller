@@ -40,6 +40,17 @@ The analyze skill runs 6 phases sequentially:
 - Era detection outputs JSON array to stdout; errors go to stderr
 - The plugin uses `${CLAUDE_PLUGIN_ROOT}` to reference its own files
 
+## Version Updates
+
+When bumping the version, update all three files in lockstep:
+1. `.claude-plugin/plugin.json` — `version`
+2. `.claude-plugin/marketplace.json` — `metadata.version` and `plugins[0].version` (two occurrences)
+3. `package.json` — `version`
+
+## Testing
+
+Run `./tests/run-tests.sh` to execute all test suites. Tests cover plugin structure, era detection, timeline generation, template validation, and end-to-end integration. All tests must pass before releasing.
+
 ## Boundaries
 
 - Never modify the target repository being analyzed
