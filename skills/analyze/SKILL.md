@@ -9,86 +9,132 @@ Analyze a git repository's commit history and produce an interactive timeline.
 
 ## Usage
 
-The user invokes this skill as:
 ```
 /storyteller:analyze [repo-path] [--docs-repo <path>] [--changelog <path>] [--output <path>]
 ```
 
-## Arguments
+## Step 0: Parse Arguments
 
-Parse the arguments from `$ARGUMENTS`:
-- First positional argument: repository path (default: current working directory)
-- `--docs-repo <path>`: optional separate documentation repository
-- `--changelog <path>`: optional changelog file (CHANGELOG.md, HISTORY.md, etc.)
-- `--output <path>`: output directory (default: `./storyteller-output/`)
+Parse arguments from `$ARGUMENTS`:
 
-Store these in variables for use throughout the phases. Resolve all paths to absolute paths.
+```
+REPO_PATH = first positional argument, or current working directory if not provided
+DOCS_REPO = value after --docs-repo flag, or empty
+CHANGELOG = value after --changelog flag, or empty
+OUTPUT_DIR = value after --output flag, or "./storyteller-output/"
+```
+
+Resolve all paths to absolute paths using `realpath` or `cd && pwd`.
+
+Verify the target is a git repository:
+```bash
+git -C <REPO_PATH> rev-parse --git-dir
+```
+
+If not a git repo, report the error and stop.
+
+Determine the project name from the repository directory name:
+```bash
+basename <REPO_PATH>
+```
 
 ## Phase 1: Era Detection
 
-Run the era detection script to identify time periods in the repository's history.
-
 **Step 1: Run era detection**
 
-Use the Bash tool to run the detection script:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/detect-eras.sh <repo-path>
+${CLAUDE_PLUGIN_ROOT}/scripts/detect-eras.sh <REPO_PATH>
 ```
 
-The script outputs a JSON array of era objects with fields: name, start_ref, end_ref, start_date, end_date, commit_count, contributor_count.
+Parse the JSON output into an era list.
 
 **Step 2: Present eras to user**
 
-Display the detected eras in a readable table format showing:
-- Era name (e.g., "v1.0 → v2.0")
-- Date range
-- Commit count
-- Contributor count
+Display detected eras as a table:
 
-**Step 3: Ask user for overrides**
+| # | Era | Date Range | Commits | Contributors |
+|---|-----|-----------|---------|-------------|
+| 1 | Origin → v1.0 | 2023-01-15 → 2023-06-30 | 142 | 5 |
+| 2 | v1.0 → v2.0 | 2023-06-30 → 2024-01-15 | 230 | 8 |
 
-Use AskUserQuestion to let the user confirm or adjust:
+**Step 3: Ask for confirmation**
+
+Use AskUserQuestion:
 ```
-Question: "These eras were detected from your repository. Would you like to proceed or adjust?"
+Question: "Storyteller detected [N] eras. Proceed with analysis or adjust?"
 Options:
   - "Proceed with these eras"
   - "I'd like to adjust era boundaries"
 ```
 
-If the user wants adjustments, ask follow-up questions about which eras to merge, split, or remove.
+If adjustment requested, ask which eras to merge, split, or remove, then re-present.
+
+## Phase 1.5: README Snapshot Extraction
+
+Before researching eras, extract README snapshots at era boundaries to provide context to era-researcher agents.
+
+**Step 1: Extract README at each era boundary ref**
+
+For each era's `end_ref`, attempt to extract the README:
+```bash
+git -C <REPO_PATH> show <end_ref>:README.md 2>/dev/null || git -C <REPO_PATH> show <end_ref>:README 2>/dev/null || git -C <REPO_PATH> show <end_ref>:README.rst 2>/dev/null || echo ""
+```
+
+Store each snapshot as `README_SNAPSHOT_<era-index>`. These will be passed to era-researcher agents in Phase 3.
 
 ## Phase 2: Beads Initialization
 
-After the user confirms eras, initialize the Beads workspace and create tracking issues.
+**Step 0: Check for existing Beads workspace (resume support)**
+
+Check if a previous run already created a Beads workspace:
+```bash
+# Check target repo first, then output dir
+if [ -d "<REPO_PATH>/.beads" ]; then
+    BEADS_DIR="<REPO_PATH>"
+elif [ -d "<OUTPUT_DIR>/.beads" ]; then
+    BEADS_DIR="<OUTPUT_DIR>"
+fi
+```
+
+If an existing workspace is found with ST-prefixed issues:
+```bash
+br --db <BEADS_DIR>/.beads/beads.db list --format json
+```
+
+Parse the issue list. For any issues with status `"closed"`, skip those eras in Phase 3 (they were already researched). For issues with status `"in_progress"` or `"open"`, re-research those eras.
+
+Report to the user: "Found existing Storyteller workspace. Resuming: [N] eras already complete, [M] remaining."
+
+If no existing workspace is found, proceed with fresh initialization.
 
 **Step 1: Select workspace location**
 
-Determine where to initialize Beads:
-- If the target repo's `.beads/` directory does NOT exist and the repo is writable, use the target repo directory.
-- Otherwise, use the output directory (create it first if needed).
-
-Test writability:
 ```bash
-touch <repo-path>/.beads-test && rm <repo-path>/.beads-test
+# Test if target repo is writable and doesn't already have .beads/
+if [ ! -d "<REPO_PATH>/.beads" ] && touch "<REPO_PATH>/.beads-test" 2>/dev/null; then
+    rm "<REPO_PATH>/.beads-test"
+    BEADS_DIR="<REPO_PATH>"
+else
+    mkdir -p "<OUTPUT_DIR>"
+    BEADS_DIR="<OUTPUT_DIR>"
+fi
 ```
 
-**Step 2: Initialize Beads workspace**
+**Step 2: Initialize and create issues**
 
 ```bash
-cd <workspace-location>
+cd <BEADS_DIR>
 br init --prefix ST
 ```
 
-**Step 3: Create one issue per confirmed era**
-
-For each era, create a Beads issue:
+For each confirmed era:
 ```bash
-br create "Research era: <era-name>" -p 1 -d "Era: <era-name>\nStart: <start_ref> (<start_date>)\nEnd: <end_ref> (<end_date>)\nCommits: <commit_count>\nContributors: <contributor_count>"
+br create "Research era: <era-name>" -p 1 -d "<era details>"
 ```
 
-Capture each issue ID from the output (e.g., ST-1, ST-2, ...).
+Capture the issue IDs (ST-1, ST-2, ...) from the output.
 
-**Step 4: Verify issues created**
+**Step 3: Verify**
 
 ```bash
 br list --format json
@@ -96,59 +142,104 @@ br list --format json
 
 ## Phase 3: Parallel Era Research
 
-Fan out era-researcher agents in parallel — one per era. Collect all results.
+**CRITICAL: Make ALL Task tool calls in a SINGLE response.**
 
-**CRITICAL: Make ALL Task tool calls in a SINGLE response to enable parallel execution.**
-
-**Step 1: Dispatch era-researcher agents**
-
-For each confirmed era, make one Task tool call with `subagent_type: "era-researcher"`:
+For each era, dispatch one `era-researcher` agent via the Task tool:
 
 ```
-Task tool call for each era:
-  subagent_type: "era-researcher"
-  description: "Research era: <era-name>"
-  prompt: |
-    Research the following era of the git repository:
-
-    REPO_PATH: <absolute-repo-path>
-    ERA_NAME: <era-name>
-    START_REF: <start_ref>
-    END_REF: <end_ref>
-    START_DATE: <start_date>
-    END_DATE: <end_date>
-    BEADS_ISSUE_ID: <issue-id>
-    BEADS_DB: <absolute-path-to-beads-db>
-    DOCS_REPO_PATH: <docs-repo-path or omit if not provided>
-    CHANGELOG_PATH: <changelog-path or omit if not provided>
-
-    Follow the instructions in your agent definition to perform layered analysis
-    and return a structured JSON report.
+subagent_type: "era-researcher"
+description: "Research era: <era-name>"
+prompt: |
+  REPO_PATH: <absolute-repo-path>
+  ERA_NAME: <era-name>
+  START_REF: <start_ref>
+  END_REF: <end_ref>
+  START_DATE: <start_date>
+  END_DATE: <end_date>
+  BEADS_ISSUE_ID: <issue-id>
+  BEADS_DB: <absolute-path-to-beads-db>
+  DOCS_REPO_PATH: <if provided>
+  CHANGELOG_PATH: <if provided>
+  README_SNAPSHOT: <README content at end_ref, if extracted>
 ```
 
-Make ALL these Task calls in one message. Claude Code will execute them in parallel.
+**Note on resume:** If resuming from a previous run, only dispatch agents for eras whose Beads issues are NOT closed. Skip already-completed eras.
 
-**Step 2: Collect results**
+After all agents complete:
+- Collect successful JSON reports
+- Record any failures
 
-After all agents complete, collect the JSON reports from each. Parse the JSON from each agent's response.
+Report progress: "Successfully researched [N] of [M] eras."
 
-**Step 3: Handle partial failures**
+For failures: "Era '<name>' failed: <error>. Consider splitting this era."
 
-Some agents may fail (timeout, context overflow). For each agent:
-- If succeeded: add its JSON report to the results collection
-- If failed: record the failure with the era name and error
+If ALL agents failed, stop and report.
 
-If ANY agents succeeded, continue to Phase 4 with available data.
+## Phase 4: Narrative Synthesis
 
-Report to the user:
-- "Successfully researched [N] of [M] eras."
-- For each failure: "Era '<name>' failed: <error>. Consider splitting this era (it had <commit_count> commits)."
+Dispatch the `narrative-synthesizer` agent via the Task tool:
 
-If ALL agents failed, stop and report the error to the user.
+```
+subagent_type: "narrative-synthesizer"
+description: "Synthesize timeline narrative"
+prompt: |
+  PROJECT_NAME: <project-name>
+  REPO_PATH: <absolute-repo-path>
+  OUTPUT_PATH: <absolute-output-dir>
+  ERA_REPORTS: <JSON array of all successful era reports>
+```
 
-## Status
+The synthesizer writes `timeline-data.json` to the output directory.
 
-Phases 4-6 are not yet implemented:
-- Phase 4: Narrative Synthesis (Phase 6)
-- Phase 5: Timeline Generation (Phase 7)
-- Phase 6: End-to-End Integration (Phase 8)
+## Phase 5: Timeline Generation
+
+Run the generation script:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/generate-timeline.sh <OUTPUT_DIR>/timeline-data.json <OUTPUT_DIR> ${CLAUDE_PLUGIN_ROOT}
+```
+
+## Phase 6: Final Report
+
+Present the results to the user:
+
+```
+Storyteller timeline complete!
+
+Timeline: <OUTPUT_DIR>/index.html
+Eras analyzed: [N] of [M]
+Contributors found: [total unique]
+Time span: [first date] → [last date]
+
+Open the timeline:
+  open <OUTPUT_DIR>/index.html
+```
+
+If there were partial failures, include:
+```
+Note: [K] era(s) could not be analyzed:
+  - <era-name>: <error reason>
+```
+
+## Edge Cases
+
+**Repository with no tags:**
+The detect-eras.sh script automatically falls back to time-gap heuristics, then commit-count chunking. No special handling needed.
+
+**Very large eras (500+ commits):**
+The era-researcher agent self-limits to 30 impactful commits for Layer 2 deep-dive. If an agent fails due to context overflow, suggest to the user: "Consider splitting era '<name>' into sub-eras for more detailed analysis."
+
+**Read-only repository:**
+Beads workspace is created in the output directory instead of the target repo. This is handled automatically in Phase 2.
+
+**Docs repo with different branch structure:**
+When correlating docs-repo changes to eras, use date-range filtering (`git log --after --before`) rather than tag matching:
+```bash
+git -C <DOCS_REPO_PATH> log --format='%as %s' --after=<START_DATE> --before=<END_DATE>
+```
+
+**Repository with only one commit:**
+detect-eras.sh produces a single era. The timeline will have one event slide.
+
+**Empty output from detect-eras.sh:**
+If no eras are detected (empty JSON array), report to the user: "No eras could be detected. The repository may have too few commits." and stop.
