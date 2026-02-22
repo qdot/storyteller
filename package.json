@@ -1,0 +1,9 @@
+{
+  "name": "storyteller",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Git history timeline generator - Claude Code plugin",
+  "dependencies": {
+    "@knight-lab/timelinejs": "^3.9.8"
+  }
+}
