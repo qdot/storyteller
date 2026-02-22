@@ -1,0 +1,38 @@
+{
+  "name": "storyteller",
+  "owner": {
+    "name": "qdot"
+  },
+  "metadata": {
+    "description": "Turn any git repository's commit history into an interactive TimelineJS3 timeline with AI-powered narrative synthesis.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "storyteller",
+      "source": ".",
+      "description": "Analyzes a git repository's history, detects development eras, researches them in parallel via AI subagents, and generates a self-contained interactive TimelineJS3 timeline with narrative prose.",
+      "version": "0.1.0",
+      "author": {
+        "name": "qdot"
+      },
+      "repository": "https://github.com/qdot/storyteller",
+      "license": "MIT",
+      "keywords": [
+        "git",
+        "history",
+        "timeline",
+        "visualization",
+        "narrative",
+        "timelinejs"
+      ],
+      "category": "visualization",
+      "tags": [
+        "git-history",
+        "timeline-generation",
+        "project-storytelling",
+        "parallel-agents"
+      ]
+    }
+  ]
+}
