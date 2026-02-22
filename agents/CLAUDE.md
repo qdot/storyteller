@@ -19,9 +19,9 @@ Subagent definitions dispatched by the analyze skill via the Task tool. Each age
 ### narrative-synthesizer
 
 - **Exposes**: `timeline-data.json` file in TimelineJS3 format (title slide + event slides)
-- **Guarantees**: Validates output with `jq`. Dates are TimelineJS3 date objects (`{year, month, day}`). HTML formatting in text fields uses `<p>`, `<strong>`, `<em>`, `<ul>`, `<li>`.
+- **Guarantees**: Validates JSON structure before writing. Dates are TimelineJS3 date objects (`{year, month, day}`). HTML formatting in text fields uses `<p>`, `<strong>`, `<em>`, `<ul>`, `<li>`.
 - **Expects**: Prompt with PROJECT_NAME, REPO_PATH, OUTPUT_PATH, ERA_REPORTS (JSON array).
-- **Tools**: Read, Bash
+- **Tools**: Read, Write
 - **Model**: sonnet
 
 ## Key Decisions

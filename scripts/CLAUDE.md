@@ -21,7 +21,7 @@ Bash utilities called by the orchestrator skill. Handle era boundary detection a
 - **Usage**: `generate-timeline.sh <timeline-data.json> <output-dir> <plugin-root>`
 - **Guarantees**: Creates self-contained output directory with index.html, vendored TimelineJS3 assets, and timeline data. Validates JSON input with jq before copying.
 - **Expects**: Valid timeline-data.json, plugin-root with `node_modules/@knight-lab/timelinejs/dist/` and `templates/timeline.html`.
-- **Output structure**: `output-dir/{index.html, timeline-data.json, assets/{js/, css/}}`
+- **Output structure**: `output-dir/{index.html, timeline-data.json, assets/{js/, js/locale/, css/}}`
 
 ## Invariants
 

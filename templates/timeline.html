@@ -34,12 +34,43 @@
                 return response.json();
             })
             .then(function(data) {
+                // script_path must be an absolute URL — TimelineJS3 uses new URL(relative, script_path)
+                // which throws TypeError if the base is not absolute
+                var base = window.location.href.replace(/\/[^\/]*$/, '/');
                 var options = {
-                    script_path: 'assets/js/',
+                    script_path: base + 'assets/js/',
+                    language: 'en',
                     timenav_height_percentage: 25,
                     start_at_end: false
                 };
-                new TL.Timeline('timeline-embed', data, options);
+                try {
+                    var timeline = new TL.Timeline('timeline-embed', data, options);
+                } catch (e) {
+                    throw new Error('Timeline init failed: ' + e.message);
+                }
+
+                // Safety timeout — if timeline never renders, show diagnostics
+                setTimeout(function() {
+                    var container = document.getElementById('timeline-embed');
+                    if (container && container.querySelector('.tl-storyslider') === null) {
+                        var errorDiv = document.createElement('div');
+                        errorDiv.className = 'storyteller-error';
+
+                        var heading = document.createElement('h2');
+                        heading.textContent = 'Timeline failed to load';
+                        errorDiv.appendChild(heading);
+
+                        var msg = document.createElement('p');
+                        msg.textContent = 'TimelineJS3 did not initialize within 10 seconds.';
+                        errorDiv.appendChild(msg);
+
+                        var hint = document.createElement('p');
+                        hint.textContent = 'Check the browser console for errors. Common cause: missing assets/js/locale/en.json.';
+                        errorDiv.appendChild(hint);
+
+                        container.appendChild(errorDiv);
+                    }
+                }, 10000);
             })
             .catch(function(error) {
                 var container = document.getElementById('timeline-embed');

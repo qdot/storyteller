@@ -74,6 +74,17 @@ The plugin runs six phases sequentially:
 5. **Timeline Generation** — Assembles a self-contained HTML directory with vendored TimelineJS3 assets and the generated timeline data.
 6. **Final Report** — Summarizes results and provides the path to the generated timeline.
 
+## Permissions
+
+The analyze skill requires **Bash tool permission** in Claude Code. This is needed for:
+- Era detection and timeline generation scripts (`detect-eras.sh`, `generate-timeline.sh`)
+- Beads issue tracker initialization and management
+- The `era-researcher` subagent's git commands (log, show, diff)
+
+The permission prompt appears early in Phase 0 (argument parsing) when the orchestrator runs its first shell command. Once granted, it covers all subsequent bash usage including subagent dispatch.
+
+The `narrative-synthesizer` subagent does **not** require Bash — it uses only Read and Write tools.
+
 ## Project Structure
 
 ```

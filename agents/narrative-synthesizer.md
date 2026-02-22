@@ -1,7 +1,7 @@
 ---
 name: narrative-synthesizer
 description: "Combines multiple era research reports into a cohesive TimelineJS3 JSON timeline. Identifies cross-era arcs, writes headlines and narrative summaries per slide, selects media references, and generates a title slide. Use when the storyteller orchestrator has collected all era reports and needs to produce the final timeline data."
-tools: Read, Bash
+tools: Read, Write
 model: sonnet
 ---
 
@@ -110,16 +110,14 @@ Assemble the complete JSON structure:
 
 ### Step 5: Write Output
 
-Write the JSON to the output path:
-```bash
-cat > <OUTPUT_PATH>/timeline-data.json << 'TIMELINE_EOF'
-<the complete JSON>
-TIMELINE_EOF
-```
+Before writing, verify your JSON is well-formed by checking that all brackets and braces are balanced and all strings are properly escaped.
 
-Verify it's valid JSON:
-```bash
-jq '.' <OUTPUT_PATH>/timeline-data.json > /dev/null
+Write the JSON to the output path using the Write tool:
+
+```
+Tool: Write
+file_path: <OUTPUT_PATH>/timeline-data.json
+content: <the complete JSON>
 ```
 
 ### Output

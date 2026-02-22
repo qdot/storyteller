@@ -42,6 +42,10 @@ mkdir -p "$OUTPUT_DIR/assets/css/fonts"
 
 # Copy TimelineJS3 assets
 cp "$TIMELINEJS_DIR/js/timeline.js" "$OUTPUT_DIR/assets/js/timeline.min.js"
+
+# Copy locale files (required — TimelineJS3 fetches locale JSON at init and hangs without it)
+mkdir -p "$OUTPUT_DIR/assets/js/locale"
+cp "$TIMELINEJS_DIR/js/locale/"*.json "$OUTPUT_DIR/assets/js/locale/"
 cp "$TIMELINEJS_DIR/css/timeline.css" "$OUTPUT_DIR/assets/css/timeline.css"
 
 # Copy icon fonts (required for navigation icons)
@@ -50,8 +54,11 @@ cp "$TIMELINEJS_DIR/css/icons/"* "$OUTPUT_DIR/assets/css/icons/" 2>/dev/null || 
 # Copy default font CSS
 cp "$TIMELINEJS_DIR/css/fonts/font.default.css" "$OUTPUT_DIR/assets/css/fonts/" 2>/dev/null || true
 
-# Copy timeline data
+# Copy timeline data as both raw JSON and a JS module (for file:// protocol support)
 cp "$TIMELINE_DATA" "$OUTPUT_DIR/timeline-data.json"
+printf 'window.defined_timeline_data = ' > "$OUTPUT_DIR/timeline-data.js"
+cat "$TIMELINE_DATA" >> "$OUTPUT_DIR/timeline-data.js"
+printf ';\n' >> "$OUTPUT_DIR/timeline-data.js"
 
 # Copy HTML template
 cp "$PLUGIN_ROOT/templates/timeline.html" "$OUTPUT_DIR/index.html"

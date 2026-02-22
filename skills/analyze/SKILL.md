@@ -31,6 +31,8 @@ Verify the target is a git repository:
 git -C <REPO_PATH> rev-parse --git-dir
 ```
 
+**Note:** This first bash command triggers the Bash tool permission prompt. The user must grant permission here — it is required for era detection scripts, Beads initialization, and era-researcher subagents' git commands in Phase 3.
+
 If not a git repo, report the error and stop.
 
 Determine the project name from the repository directory name:
