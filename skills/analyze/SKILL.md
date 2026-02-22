@@ -57,9 +57,9 @@ If the user wants adjustments, ask follow-up questions about which eras to merge
 
 ## Status
 
-Phases 2-8 are not yet implemented:
-- Phase 2: Beads Integration (Phase 3)
-- Phase 3: Era Research (Phase 4-5)
-- Phase 4: Narrative Synthesis (Phase 6)
-- Phase 5: Timeline Generation (Phase 7)
-- Phase 6: End-to-End Integration (Phase 8)
+Phases 3-8 are not yet implemented:
+- Phase 3: Beads Integration
+- Phase 4-5: Era Research
+- Phase 6: Narrative Synthesis
+- Phase 7: Timeline Generation
+- Phase 8: End-to-End Integration & Polish

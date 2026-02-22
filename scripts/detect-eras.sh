@@ -155,7 +155,29 @@ detect_from_tags() {
         eras=$(echo "$eras" | jq --argjson era "$era" '. + [$era]')
     fi
 
-    # Output eras (merging logic disabled due to complexity)
+    # Merge adjacent eras if too many to stay within MAX_ERAS
+    local era_count
+    era_count=$(echo "$eras" | jq 'length')
+    while [ "$era_count" -gt "$MAX_ERAS" ]; do
+        # Merge the two adjacent eras with the smallest combined commit count
+        eras=$(echo "$eras" | jq '
+            if length <= 1 then . else
+                # Find index of pair with smallest combined commits
+                (([range(0; length - 1)] | map(. as $i | {i: $i, combined: .[$i].commit_count + .[$i + 1].commit_count}) | min_by(.combined) | .i) // 0) as $idx |
+                .[:$idx] + [{
+                    name: (.[$idx].name | split(" → ")[0]) + " → " + (.[$idx + 1].name | split(" → ")[-1]),
+                    start_ref: .[$idx].start_ref,
+                    end_ref: .[$idx + 1].end_ref,
+                    start_date: .[$idx].start_date,
+                    end_date: .[$idx + 1].end_date,
+                    commit_count: (.[$idx].commit_count + .[$idx + 1].commit_count),
+                    contributor_count: ([.[$idx].contributor_count, .[$idx + 1].contributor_count] | max)
+                }] + .[($idx + 2):]
+            end
+        ')
+        era_count=$(echo "$eras" | jq 'length')
+    done
+
     echo "$eras" | jq '.'
 }
 
@@ -224,15 +246,10 @@ detect_from_heuristics() {
         local end_date="${dates[$end_idx]}"
         local commits=$((end_idx - start_idx + 1))
         local contributors
-        # Guard: for the first era (start_idx=0), the start commit may be the root commit
-        # which has no parent, so ^..end fails. Use --root for the first era.
+        # For the first era (start_idx=0), count contributors from root to end_hash
+        # For other eras, count from start_hash^ to end_hash
         if [ "$start_idx" -eq 0 ]; then
-            contributors=$(git -C "$REPO_PATH" log --format='%aN' "$end_hash" --not $(git -C "$REPO_PATH" rev-list --max-parents=0 HEAD | tail -n +2) 2>/dev/null | sort -u | wc -l | tr -d ' ')
-            # Simpler fallback: just count contributors in the commit range by date
-            if [ "$contributors" -eq 0 ] 2>/dev/null; then
-                contributors=$(git -C "$REPO_PATH" log --format='%aN' "${start_hash}..${end_hash}" 2>/dev/null | sort -u | wc -l | tr -d ' ')
-                contributors=$((contributors + 1))  # Include the start commit's author
-            fi
+            contributors=$(git -C "$REPO_PATH" log --format='%aN' "$end_hash" | sort -u | wc -l | tr -d ' ')
         else
             contributors=$(git -C "$REPO_PATH" log --format='%aN' "${start_hash}^..${end_hash}" 2>/dev/null | sort -u | wc -l | tr -d ' ')
         fi
@@ -254,8 +271,9 @@ detect_from_heuristics() {
 }
 
 # Main: try tags first, fall back to heuristics
-if detect_from_tags 2>/dev/null; then
+if detect_from_tags; then
     exit 0
+else
+    # If tag-based detection failed (not enough tags), fall back to heuristics
+    detect_from_heuristics
 fi
-
-detect_from_heuristics
