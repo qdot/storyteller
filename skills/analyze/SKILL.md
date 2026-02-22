@@ -22,7 +22,7 @@ Parse the arguments from `$ARGUMENTS`:
 - `--changelog <path>`: optional changelog file (CHANGELOG.md, HISTORY.md, etc.)
 - `--output <path>`: output directory (default: `./storyteller-output/`)
 
-Store these in variables for use throughout the phases.
+Store these in variables for use throughout the phases. Resolve all paths to absolute paths.
 
 ## Phase 1: Era Detection
 
@@ -79,17 +79,14 @@ cd <workspace-location>
 br init --prefix ST
 ```
 
-This creates the `.beads/` directory with a database and ST-prefixed issue IDs.
-
 **Step 3: Create one issue per confirmed era**
 
-For each era in the confirmed era list, create a Beads issue:
-
+For each era, create a Beads issue:
 ```bash
 br create "Research era: <era-name>" -p 1 -d "Era: <era-name>\nStart: <start_ref> (<start_date>)\nEnd: <end_ref> (<end_date>)\nCommits: <commit_count>\nContributors: <contributor_count>"
 ```
 
-Use priority 1 (high) for all era research issues.
+Capture each issue ID from the output (e.g., ST-1, ST-2, ...).
 
 **Step 4: Verify issues created**
 
@@ -97,16 +94,61 @@ Use priority 1 (high) for all era research issues.
 br list --format json
 ```
 
-Verify that all era issues are in `open` status and the count matches the number of confirmed eras.
+## Phase 3: Parallel Era Research
 
-**Step 5: Report to user**
+Fan out era-researcher agents in parallel — one per era. Collect all results.
 
-Display: "Created [N] tracking issues in Beads workspace at [workspace-location]. Ready for era research."
+**CRITICAL: Make ALL Task tool calls in a SINGLE response to enable parallel execution.**
+
+**Step 1: Dispatch era-researcher agents**
+
+For each confirmed era, make one Task tool call with `subagent_type: "era-researcher"`:
+
+```
+Task tool call for each era:
+  subagent_type: "era-researcher"
+  description: "Research era: <era-name>"
+  prompt: |
+    Research the following era of the git repository:
+
+    REPO_PATH: <absolute-repo-path>
+    ERA_NAME: <era-name>
+    START_REF: <start_ref>
+    END_REF: <end_ref>
+    START_DATE: <start_date>
+    END_DATE: <end_date>
+    BEADS_ISSUE_ID: <issue-id>
+    BEADS_DB: <absolute-path-to-beads-db>
+    DOCS_REPO_PATH: <docs-repo-path or omit if not provided>
+    CHANGELOG_PATH: <changelog-path or omit if not provided>
+
+    Follow the instructions in your agent definition to perform layered analysis
+    and return a structured JSON report.
+```
+
+Make ALL these Task calls in one message. Claude Code will execute them in parallel.
+
+**Step 2: Collect results**
+
+After all agents complete, collect the JSON reports from each. Parse the JSON from each agent's response.
+
+**Step 3: Handle partial failures**
+
+Some agents may fail (timeout, context overflow). For each agent:
+- If succeeded: add its JSON report to the results collection
+- If failed: record the failure with the era name and error
+
+If ANY agents succeeded, continue to Phase 4 with available data.
+
+Report to the user:
+- "Successfully researched [N] of [M] eras."
+- For each failure: "Era '<name>' failed: <error>. Consider splitting this era (it had <commit_count> commits)."
+
+If ALL agents failed, stop and report the error to the user.
 
 ## Status
 
-Phases 3-6 are not yet implemented:
-- Phase 3: Era Research (Phase 4-5)
+Phases 4-6 are not yet implemented:
 - Phase 4: Narrative Synthesis (Phase 6)
 - Phase 5: Timeline Generation (Phase 7)
 - Phase 6: End-to-End Integration (Phase 8)
