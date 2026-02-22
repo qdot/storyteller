@@ -10,7 +10,10 @@
   "plugins": [
     {
       "name": "storyteller",
-      "source": ".",
+      "source": {
+        "source": "github",
+        "repo": "qdot/storyteller"
+      },
       "description": "Analyzes a git repository's history, detects development eras, researches them in parallel via AI subagents, and generates a self-contained interactive TimelineJS3 timeline with narrative prose.",
       "version": "0.1.0",
       "author": {
