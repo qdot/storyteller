@@ -161,16 +161,16 @@ detect_from_tags() {
     while [ "$era_count" -gt "$MAX_ERAS" ]; do
         # Merge the two adjacent eras with the smallest combined commit count
         eras=$(echo "$eras" | jq '
+            . as $arr |
             if length <= 1 then . else
-                # Find index of pair with smallest combined commits
-                (([range(0; length - 1)] | map(. as $i | {i: $i, combined: .[$i].commit_count + .[$i + 1].commit_count}) | min_by(.combined) | .i) // 0) as $idx |
+                (([range(0; length - 1)] | map({i: ., combined: (($arr[.].commit_count) + ($arr[. + 1].commit_count))}) | min_by(.combined) | .i) // 0) as $idx |
                 .[:$idx] + [{
-                    name: (.[$idx].name | split(" → ")[0]) + " → " + (.[$idx + 1].name | split(" → ")[-1]),
+                    name: ((.[$idx].name | split(" → ")[0]) + " → " + (.[$idx + 1].name | split(" → ")[-1])),
                     start_ref: .[$idx].start_ref,
                     end_ref: .[$idx + 1].end_ref,
                     start_date: .[$idx].start_date,
                     end_date: .[$idx + 1].end_date,
-                    commit_count: (.[$idx].commit_count + .[$idx + 1].commit_count),
+                    commit_count: ((.[$idx].commit_count) + (.[$idx + 1].commit_count)),
                     contributor_count: ([.[$idx].contributor_count, .[$idx + 1].contributor_count] | max)
                 }] + .[($idx + 2):]
             end
