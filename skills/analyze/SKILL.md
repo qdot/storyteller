@@ -22,6 +22,8 @@ Parse the arguments from `$ARGUMENTS`:
 - `--changelog <path>`: optional changelog file (CHANGELOG.md, HISTORY.md, etc.)
 - `--output <path>`: output directory (default: `./storyteller-output/`)
 
+Store these in variables for use throughout the phases.
+
 ## Phase 1: Era Detection
 
 Run the era detection script to identify time periods in the repository's history.
@@ -55,11 +57,56 @@ Options:
 
 If the user wants adjustments, ask follow-up questions about which eras to merge, split, or remove.
 
+## Phase 2: Beads Initialization
+
+After the user confirms eras, initialize the Beads workspace and create tracking issues.
+
+**Step 1: Select workspace location**
+
+Determine where to initialize Beads:
+- If the target repo's `.beads/` directory does NOT exist and the repo is writable, use the target repo directory.
+- Otherwise, use the output directory (create it first if needed).
+
+Test writability:
+```bash
+touch <repo-path>/.beads-test && rm <repo-path>/.beads-test
+```
+
+**Step 2: Initialize Beads workspace**
+
+```bash
+cd <workspace-location>
+br init --prefix ST
+```
+
+This creates the `.beads/` directory with a database and ST-prefixed issue IDs.
+
+**Step 3: Create one issue per confirmed era**
+
+For each era in the confirmed era list, create a Beads issue:
+
+```bash
+br create "Research era: <era-name>" -p 1 -d "Era: <era-name>\nStart: <start_ref> (<start_date>)\nEnd: <end_ref> (<end_date>)\nCommits: <commit_count>\nContributors: <contributor_count>"
+```
+
+Use priority 1 (high) for all era research issues.
+
+**Step 4: Verify issues created**
+
+```bash
+br list --format json
+```
+
+Verify that all era issues are in `open` status and the count matches the number of confirmed eras.
+
+**Step 5: Report to user**
+
+Display: "Created [N] tracking issues in Beads workspace at [workspace-location]. Ready for era research."
+
 ## Status
 
-Phases 3-8 are not yet implemented:
-- Phase 3: Beads Integration
-- Phase 4-5: Era Research
-- Phase 6: Narrative Synthesis
-- Phase 7: Timeline Generation
-- Phase 8: End-to-End Integration & Polish
+Phases 3-6 are not yet implemented:
+- Phase 3: Era Research (Phase 4-5)
+- Phase 4: Narrative Synthesis (Phase 6)
+- Phase 5: Timeline Generation (Phase 7)
+- Phase 6: End-to-End Integration (Phase 8)
