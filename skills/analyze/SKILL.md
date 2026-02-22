@@ -13,7 +13,34 @@ Analyze a git repository's commit history and produce an interactive timeline.
 /storyteller:analyze [repo-path] [--docs-repo <path>] [--changelog <path>] [--output <path>]
 ```
 
-## Step 0: Parse Arguments
+## Step 0: Parse Arguments and Pre-checks
+
+### Step 0a: Permission Pre-check
+
+Before doing any real work, verify that Bash tool permission is granted:
+
+```bash
+echo "storyteller-permission-check"
+```
+
+If the user denies this Bash permission, stop immediately with a clear message:
+```
+Storyteller requires Bash permission to run git commands, era detection scripts, and subagent operations. Please re-run and grant Bash permission when prompted.
+```
+
+Check if the Beads CLI is available:
+```bash
+command -v br
+```
+
+If `br` is not found, set `BEADS_AVAILABLE=false` and warn the user:
+```
+Note: Beads CLI (br) not found. Issue tracking will be skipped. Install beads_rust for full pipeline tracking.
+```
+
+If `br` is found, set `BEADS_AVAILABLE=true`.
+
+### Step 0b: Parse Arguments
 
 Parse arguments from `$ARGUMENTS`:
 
@@ -31,14 +58,20 @@ Verify the target is a git repository:
 git -C <REPO_PATH> rev-parse --git-dir
 ```
 
-**Note:** This first bash command triggers the Bash tool permission prompt. The user must grant permission here — it is required for era detection scripts, Beads initialization, and era-researcher subagents' git commands in Phase 3.
-
 If not a git repo, report the error and stop.
 
 Determine the project name from the repository directory name:
 ```bash
 basename <REPO_PATH>
 ```
+
+### Step 0c: Create Era Reports Directory
+
+```bash
+mkdir -p <OUTPUT_DIR>/era-reports
+```
+
+Set `ERA_REPORTS_DIR` to the absolute path of `<OUTPUT_DIR>/era-reports`.
 
 ## Phase 1: Era Detection
 
@@ -84,9 +117,32 @@ git -C <REPO_PATH> show <end_ref>:README.md 2>/dev/null || git -C <REPO_PATH> sh
 
 Store each snapshot as `README_SNAPSHOT_<era-index>`. These will be passed to era-researcher agents in Phase 3.
 
-## Phase 2: Beads Initialization
+## Phase 2: Resume Detection and Beads Initialization
 
-**Step 0: Check for existing Beads workspace (resume support)**
+**Step 0a: Disk-based resume check**
+
+Check for existing era reports on disk from a previous run:
+
+```bash
+ls <ERA_REPORTS_DIR>/*.json 2>/dev/null
+```
+
+If report files exist:
+1. Read each JSON file and validate it with `jq '.' <file> > /dev/null`
+2. Extract the `era_name` field from each valid report
+3. Match report `era_name` values against the detected eras from Phase 1
+4. Build two lists:
+   - `COMPLETED_ERAS`: eras with valid reports on disk
+   - `REMAINING_ERAS`: eras without reports on disk
+5. Report to the user: "Found [N] completed era reports on disk. [M] eras remaining."
+
+If no report files exist, all eras go into `REMAINING_ERAS`.
+
+If ALL eras are already complete (REMAINING_ERAS is empty), skip to Phase 4.
+
+**Step 0b: Check for existing Beads workspace (resume support)**
+
+**Skip this step entirely if BEADS_AVAILABLE is false.**
 
 Check if a previous run already created a Beads workspace:
 ```bash
@@ -103,13 +159,20 @@ If an existing workspace is found with ST-prefixed issues:
 br --db <BEADS_DIR>/.beads/beads.db list --format json
 ```
 
-Parse the issue list. For any issues with status `"closed"`, skip those eras in Phase 3 (they were already researched). For issues with status `"in_progress"` or `"open"`, re-research those eras.
+Parse the issue list. For any eras in COMPLETED_ERAS that have open or in_progress Beads issues, close them:
+```bash
+br --db <BEADS_DIR>/.beads/beads.db close <ISSUE_ID> -r "Report already exists on disk. Closing orphaned issue."
+```
+
+For issues with status `"in_progress"` or `"open"` whose eras are in REMAINING_ERAS, keep them for Phase 3.
 
 Report to the user: "Found existing Storyteller workspace. Resuming: [N] eras already complete, [M] remaining."
 
 If no existing workspace is found, proceed with fresh initialization.
 
 **Step 1: Select workspace location**
+
+**Skip Steps 1-3 entirely if BEADS_AVAILABLE is false.**
 
 ```bash
 # Test if target repo is writable and doesn't already have .beads/
@@ -146,7 +209,9 @@ br list --format json
 
 **CRITICAL: Make ALL Task tool calls in a SINGLE response.**
 
-For each era, dispatch one `era-researcher` agent via the Task tool:
+Only dispatch agents for eras in REMAINING_ERAS (skip COMPLETED_ERAS — their reports are already on disk).
+
+For each remaining era, dispatch one `era-researcher` agent via the Task tool:
 
 ```
 subagent_type: "era-researcher"
@@ -160,15 +225,16 @@ prompt: |
   END_DATE: <end_date>
   BEADS_ISSUE_ID: <issue-id>
   BEADS_DB: <absolute-path-to-beads-db>
+  ERA_REPORTS_DIR: <absolute-path-to-era-reports-dir>
   DOCS_REPO_PATH: <if provided>
   CHANGELOG_PATH: <if provided>
   README_SNAPSHOT: <README content at end_ref, if extracted>
 ```
 
-**Note on resume:** If resuming from a previous run, only dispatch agents for eras whose Beads issues are NOT closed. Skip already-completed eras.
+**Note:** If BEADS_AVAILABLE is false, omit BEADS_ISSUE_ID and BEADS_DB from the prompt. The era-researcher will skip Beads steps if these are not provided.
 
 After all agents complete:
-- Collect successful JSON reports
+- Verify report files exist on disk in ERA_REPORTS_DIR
 - Record any failures
 
 Report progress: "Successfully researched [N] of [M] eras."
@@ -188,10 +254,10 @@ prompt: |
   PROJECT_NAME: <project-name>
   REPO_PATH: <absolute-repo-path>
   OUTPUT_PATH: <absolute-output-dir>
-  ERA_REPORTS: <JSON array of all successful era reports>
+  ERA_REPORTS_DIR: <absolute-path-to-era-reports-dir>
 ```
 
-The synthesizer writes `timeline-data.json` to the output directory.
+The synthesizer discovers and reads report files from ERA_REPORTS_DIR, then writes `timeline-data.json` to the output directory.
 
 ## Phase 5: Timeline Generation
 
