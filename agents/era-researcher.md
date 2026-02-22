@@ -20,7 +20,8 @@ You will receive a prompt from the orchestrator containing:
 - `END_DATE`: era end date (YYYY-MM-DD)
 - `BEADS_ISSUE_ID`: Beads issue ID to update (e.g., "ST-1")
 - `BEADS_DB`: absolute path to the Beads database directory
-- Optional: `DOCS_REPO_PATH`, `CHANGELOG_PATH`
+- `ERA_REPORTS_DIR`: absolute path to the era reports directory (e.g., `storyteller-output/era-reports/`)
+- Optional: `DOCS_REPO_PATH`, `CHANGELOG_PATH`, `README_SNAPSHOT`
 
 ## Execution
 
@@ -146,15 +147,53 @@ Write a JSON report with this structure:
 }
 ```
 
+### Step 4a: Persist Report to Disk
+
+Save the JSON report to disk so the orchestrator can resume without re-running this agent.
+
+**Compute a filesystem-safe slug from ERA_NAME:**
+- Lowercase the entire string
+- Replace ` → ` (space-arrow-space) with `--`
+- Replace any remaining non-alphanumeric characters (except `.` and `-`) with `-`
+- Collapse consecutive dashes into a single dash
+- Trim leading/trailing dashes
+
+Examples: `"Origin → v1.0"` → `origin--v1.0`, `"v1.0 → v2.0"` → `v1.0--v2.0`
+
+**Write the report:**
+```bash
+cat > <ERA_REPORTS_DIR>/<slug>.json << 'REPORT_EOF'
+<the complete JSON report>
+REPORT_EOF
+```
+
+**Validate the written file:**
+```bash
+jq '.' <ERA_REPORTS_DIR>/<slug>.json > /dev/null
+```
+
+If validation fails, rewrite the file with corrected JSON and validate again.
+
 ### Step 5: Close the Beads issue
 
+First, add a comment with the full report for backup:
 ```bash
-br --db <BEADS_DB> close <BEADS_ISSUE_ID> -r "Research complete. Found <N> key changes across <M> commits."
+br --db <BEADS_DB> comment <BEADS_ISSUE_ID> "Era report JSON persisted to <ERA_REPORTS_DIR>/<slug>.json"
+```
+
+Then close the issue:
+```bash
+br --db <BEADS_DB> close <BEADS_ISSUE_ID> -r "Research complete. Found <N> key changes across <M> commits. Report saved to <slug>.json"
 ```
 
 ### Output
 
-Return the JSON report as your final response. The orchestrator will parse it for narrative synthesis.
+Return a confirmation message with the file path:
+```
+Era research complete for "<ERA_NAME>". Report saved to <ERA_REPORTS_DIR>/<slug>.json
+```
+
+Do NOT return the raw JSON report. The orchestrator reads reports from disk.
 
 ## Constraints
 
