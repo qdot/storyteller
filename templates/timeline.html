@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storyteller Timeline</title>
+    <link rel="stylesheet" href="assets/css/timeline.css">
+</head>
+<body>
+    <div id="timeline-embed" style="width: 100%; height: 100vh;"></div>
+    <script src="assets/js/timeline.min.js"></script>
+    <script>
+        fetch('timeline-data.json')
+            .then(response => response.json())
+            .then(data => {
+                new TL.Timeline('timeline-embed', data);
+            });
+    </script>
+</body>
+</html>
