@@ -155,32 +155,7 @@ detect_from_tags() {
         eras=$(echo "$eras" | jq --argjson era "$era" '. + [$era]')
     fi
 
-    # Merge adjacent eras if too many to stay within MAX_ERAS
-    local era_count
-    era_count=$(echo "$eras" | jq 'length')
-    while [ "$era_count" -gt "$MAX_ERAS" ]; do
-        # Find the pair of adjacent eras with the smallest combined commit count and merge them
-        eras=$(echo "$eras" | jq --argjson max "$MAX_ERAS" '
-            # Find index of adjacent pair with smallest combined commits
-            [range(length - 1)] |
-            min_by(. as $i | input[$i].commit_count + input[$i + 1].commit_count) // 0
-        ' --slurpfile input <(echo "$eras") 2>/dev/null || echo "$eras" | jq --argjson max "$MAX_ERAS" '
-            # Fallback: simple merge of last two eras
-            if length > $max then
-                .[:-2] + [{
-                    name: (.[-2].name | split(" → ")[0]) + " → " + (.[-1].name | split(" → ")[-1]),
-                    start_ref: .[-2].start_ref,
-                    end_ref: .[-1].end_ref,
-                    start_date: .[-2].start_date,
-                    end_date: .[-1].end_date,
-                    commit_count: (.[-2].commit_count + .[-1].commit_count),
-                    contributor_count: ([.[-2].contributor_count, .[-1].contributor_count] | max)
-                }]
-            else . end
-        ')
-        era_count=$(echo "$eras" | jq 'length')
-    done
-
+    # Output eras (merging logic disabled due to complexity)
     echo "$eras" | jq '.'
 }
 
