@@ -5,15 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Storyteller Timeline</title>
     <link rel="stylesheet" href="assets/css/timeline.css">
+    <link rel="stylesheet" href="assets/css/fonts/font.default.css">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+        #timeline-embed {
+            width: 100%;
+            height: 100vh;
+        }
+        .storyteller-error {
+            padding: 40px;
+            text-align: center;
+            color: #666;
+        }
+    </style>
 </head>
 <body>
-    <div id="timeline-embed" style="width: 100%; height: 100vh;"></div>
+    <div id="timeline-embed"></div>
     <script src="assets/js/timeline.min.js"></script>
     <script>
         fetch('timeline-data.json')
-            .then(response => response.json())
-            .then(data => {
-                new TL.Timeline('timeline-embed', data);
+            .then(function(response) {
+                if (!response.ok) throw new Error('Failed to load timeline data');
+                return response.json();
+            })
+            .then(function(data) {
+                var options = {
+                    script_path: 'assets/js/',
+                    timenav_height_percentage: 25,
+                    start_at_end: false
+                };
+                new TL.Timeline('timeline-embed', data, options);
+            })
+            .catch(function(error) {
+                var container = document.getElementById('timeline-embed');
+                var errorDiv = document.createElement('div');
+                errorDiv.className = 'storyteller-error';
+
+                var heading = document.createElement('h2');
+                heading.textContent = 'Could not load timeline';
+                errorDiv.appendChild(heading);
+
+                var message = document.createElement('p');
+                message.textContent = error.message;
+                errorDiv.appendChild(message);
+
+                var hint = document.createElement('p');
+                hint.textContent = 'Make sure timeline-data.json exists in the same directory as this file.';
+                errorDiv.appendChild(hint);
+
+                container.appendChild(errorDiv);
             });
     </script>
 </body>
