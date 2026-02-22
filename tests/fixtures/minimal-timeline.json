@@ -1,0 +1,42 @@
+{
+  "title": {
+    "text": {
+      "headline": "Test Timeline",
+      "text": "A minimal timeline for testing."
+    }
+  },
+  "events": [
+    {
+      "start_date": {
+        "year": "2024",
+        "month": "1",
+        "day": "1"
+      },
+      "end_date": {
+        "year": "2024",
+        "month": "6",
+        "day": "30"
+      },
+      "text": {
+        "headline": "Era 1: Genesis",
+        "text": "The project begins."
+      }
+    },
+    {
+      "start_date": {
+        "year": "2024",
+        "month": "7",
+        "day": "1"
+      },
+      "end_date": {
+        "year": "2024",
+        "month": "12",
+        "day": "31"
+      },
+      "text": {
+        "headline": "Era 2: Growth",
+        "text": "The project matures."
+      }
+    }
+  ]
+}

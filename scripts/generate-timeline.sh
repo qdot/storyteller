@@ -55,7 +55,12 @@ cp "$TIMELINEJS_DIR/css/icons/"* "$OUTPUT_DIR/assets/css/icons/" 2>/dev/null || 
 cp "$TIMELINEJS_DIR/css/fonts/font.default.css" "$OUTPUT_DIR/assets/css/fonts/" 2>/dev/null || true
 
 # Copy timeline data as both raw JSON and a JS module (for file:// protocol support)
-cp "$TIMELINE_DATA" "$OUTPUT_DIR/timeline-data.json"
+# Skip copy if source already lives at the destination (narrative-synthesizer may write directly there)
+TIMELINE_DATA_REAL=$(realpath "$TIMELINE_DATA")
+OUTPUT_JSON_REAL=$(realpath "$OUTPUT_DIR/timeline-data.json" 2>/dev/null || echo "$OUTPUT_DIR/timeline-data.json")
+if [ "$TIMELINE_DATA_REAL" != "$OUTPUT_JSON_REAL" ]; then
+    cp "$TIMELINE_DATA" "$OUTPUT_DIR/timeline-data.json"
+fi
 printf 'window.defined_timeline_data = ' > "$OUTPUT_DIR/timeline-data.js"
 cat "$TIMELINE_DATA" >> "$OUTPUT_DIR/timeline-data.js"
 printf ';\n' >> "$OUTPUT_DIR/timeline-data.js"
