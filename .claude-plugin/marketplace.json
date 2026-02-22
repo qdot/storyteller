@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Turn any git repository's commit history into an interactive TimelineJS3 timeline with AI-powered narrative synthesis.",
-    "version": "0.1.2"
+    "version": "0.1.3"
   },
   "plugins": [
     {
@@ -15,7 +15,7 @@
         "repo": "qdot/storyteller"
       },
       "description": "Analyzes a git repository's history, detects development eras, researches them in parallel via AI subagents, and generates a self-contained interactive TimelineJS3 timeline with narrative prose.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "author": {
         "name": "qdot"
       },

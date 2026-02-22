@@ -1,5 +1,5 @@
 {
   "name": "storyteller",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Turns a git repository's commit history into a visual, interactive TimelineJS3 timeline."
 }
